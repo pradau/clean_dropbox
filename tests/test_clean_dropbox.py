@@ -128,3 +128,114 @@ def test_collect_matches_skips_dropbox_system(tmp_path: Path) -> None:
     matches = m.collect_matches(root, patterns)
     dropbox_paths = [p for p in matches if ".dropbox" in str(p)]
     assert len(dropbox_paths) == 0
+
+
+def test_collect_matches_skips_never_clean_names(tmp_path: Path) -> None:
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    (root / ".DS_Store").write_text("x")
+    patterns = ["*"]
+    matches = m.collect_matches(root, patterns)
+    assert not any(p.name == ".DS_Store" for p in matches)
+
+
+def test_collect_matches_respects_exclude_config_basename(tmp_path: Path) -> None:
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    (root / "Perry-HR-2022.dmg").write_text("x")
+    (root / "other.dmg").write_text("y")
+    patterns = ["*.dmg"]
+    exclude_file = tmp_path / "exclude.txt"
+    exclude_file.write_text("Perry-HR-2022.dmg\n")
+    full_set, basename_set = m.load_exclude_config(exclude_file)
+    matches = m.collect_matches(root, patterns, exclude_full=full_set, exclude_basename=basename_set)
+    names = [p.name for p in matches]
+    assert "Perry-HR-2022.dmg" not in names
+    assert "other.dmg" in names
+
+
+def test_collect_matches_respects_exclude_config_full_path(tmp_path: Path) -> None:
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    (root / "HR").mkdir()
+    (root / "HR" / "keep.dmg").write_text("x")
+    (root / "HR" / "remove.dmg").write_text("y")
+    patterns = ["*.dmg"]
+    exclude_file = tmp_path / "exclude.txt"
+    exclude_file.write_text("HR/keep.dmg\n")
+    full_set, basename_set = m.load_exclude_config(exclude_file)
+    matches = m.collect_matches(root, patterns, exclude_full=full_set, exclude_basename=basename_set)
+    rels = [str(p.relative_to(root)) for p in matches]
+    assert "HR/keep.dmg" not in rels
+    assert "HR/remove.dmg" in rels
+
+
+def test_load_exclude_config(tmp_path: Path) -> None:
+    f = tmp_path / "exclude.txt"
+    f.write_text("# comment\n\n  \nPerry-HR-2022.dmg\nHR/keep.dmg\n  \n")
+    full_set, basename_set = m.load_exclude_config(f)
+    assert basename_set == {"Perry-HR-2022.dmg"}
+    assert full_set == {"HR/keep.dmg"}
+
+
+def test_write_log_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """_write_log appends header, item lines, and dry-run summary to log file."""
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    log_file = tmp_path / "clean_dropbox.log"
+    (root / "foo.dmg").write_text("x")
+    match_path = root / "foo.dmg"
+    monkeypatch.setattr(m, "LOG_FILE", log_file)
+    monkeypatch.setattr(m, "DROPBOX_ROOT", root)
+    m._write_log("dry-run", [match_path], 1)
+    content = log_file.read_text(encoding="utf-8")
+    assert content.startswith("--- ")
+    assert " mode=dry-run" in content
+    assert "foo.dmg" in content
+    assert "  summary: 1 items, 1.0 B" in content
+
+
+def test_write_log_aborted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """_write_log includes (aborted by user) when aborted=True."""
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    log_file = tmp_path / "clean_dropbox.log"
+    (root / "a.dmg").write_text("a")
+    monkeypatch.setattr(m, "LOG_FILE", log_file)
+    monkeypatch.setattr(m, "DROPBOX_ROOT", root)
+    m._write_log("move", [root / "a.dmg"], 1, aborted=True)
+    assert "  (aborted by user)" in log_file.read_text(encoding="utf-8")
+
+
+def test_write_log_move_summary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """_write_log includes move summary when moved/move_failed provided."""
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    log_file = tmp_path / "clean_dropbox.log"
+    monkeypatch.setattr(m, "LOG_FILE", log_file)
+    monkeypatch.setattr(m, "DROPBOX_ROOT", root)
+    m._write_log("move", [], 0, moved=2, move_failed=1)
+    assert "  summary: moved 2 to " in log_file.read_text(encoding="utf-8")
+    assert "failed 1" in log_file.read_text(encoding="utf-8")
+
+
+def test_write_log_delete_summary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """_write_log includes delete summary when deleted/delete_failed provided."""
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    log_file = tmp_path / "clean_dropbox.log"
+    monkeypatch.setattr(m, "LOG_FILE", log_file)
+    monkeypatch.setattr(m, "DROPBOX_ROOT", root)
+    m._write_log("delete", [], 0, deleted=3, delete_failed=0)
+    assert "  summary: deleted 3, failed 0" in log_file.read_text(encoding="utf-8")
+
+
+def test_write_log_only_pattern_in_header(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """_write_log includes only_pattern in header when provided."""
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    log_file = tmp_path / "clean_dropbox.log"
+    monkeypatch.setattr(m, "LOG_FILE", log_file)
+    monkeypatch.setattr(m, "DROPBOX_ROOT", root)
+    m._write_log("dry-run", [], 0, only_pattern="*.dmg")
+    assert " only_pattern='*.dmg'" in log_file.read_text(encoding="utf-8")
