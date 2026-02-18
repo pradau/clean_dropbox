@@ -239,3 +239,42 @@ def test_write_log_only_pattern_in_header(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.setattr(m, "DROPBOX_ROOT", root)
     m._write_log("dry-run", [], 0, only_pattern="*.dmg")
     assert " only_pattern='*.dmg'" in log_file.read_text(encoding="utf-8")
+
+
+def test_run_dry_run_with_matches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """run() in dry-run mode with matches writes log and includes summary."""
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    ignore_file = tmp_path / "rules.dropboxignore"
+    ignore_file.write_text("*.dmg\n", encoding="utf-8")
+    exclude_file = tmp_path / "exclude.txt"
+    exclude_file.write_text("", encoding="utf-8")
+    log_file = tmp_path / "clean_dropbox.log"
+    (root / "test.dmg").write_text("x")
+    monkeypatch.setattr(m, "DROPBOX_ROOT", root)
+    monkeypatch.setattr(m, "IGNORE_FILE", ignore_file)
+    monkeypatch.setattr(m, "EXCLUDE_CONFIG_FILE", exclude_file)
+    monkeypatch.setattr(m, "LOG_FILE", log_file)
+    m.run("dry-run", only_pattern=None)
+    content = log_file.read_text(encoding="utf-8")
+    assert "test.dmg" in content
+    assert " mode=dry-run" in content
+    assert "summary:" in content
+
+
+def test_run_dry_run_no_matches(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """run() in dry-run mode with no matches does not write log."""
+    root = tmp_path / "Dropbox"
+    root.mkdir()
+    ignore_file = tmp_path / "rules.dropboxignore"
+    ignore_file.write_text("*.zip\n", encoding="utf-8")
+    exclude_file = tmp_path / "exclude.txt"
+    exclude_file.write_text("", encoding="utf-8")
+    log_file = tmp_path / "clean_dropbox.log"
+    (root / "test.dmg").write_text("x")
+    monkeypatch.setattr(m, "DROPBOX_ROOT", root)
+    monkeypatch.setattr(m, "IGNORE_FILE", ignore_file)
+    monkeypatch.setattr(m, "EXCLUDE_CONFIG_FILE", exclude_file)
+    monkeypatch.setattr(m, "LOG_FILE", log_file)
+    m.run("dry-run", only_pattern=None)
+    assert not log_file.exists()
