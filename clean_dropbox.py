@@ -70,7 +70,7 @@ def _under_dropbox_system(path: Path, root: Path) -> bool:
 def load_patterns(ignore_file: Path) -> list[str]:
     """Load non-comment, non-empty lines from the ignore file as pattern strings."""
     patterns = []
-    for line in ignore_file.read_text().splitlines():
+    for line in ignore_file.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             patterns.append(line)
