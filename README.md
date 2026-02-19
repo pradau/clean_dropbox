@@ -55,6 +55,15 @@ uv run pytest
 
 Or: `uv run pytest tests/ -v`
 
+## Repository
+
+- **GitHub:** https://github.com/pradau/clean_dropbox
+- **Remote and push:** To add the remote and push (e.g. after cloning elsewhere or setting up the repo):
+  ```bash
+  git remote add origin https://github.com/pradau/clean_dropbox.git
+  git push -u origin main
+  ```
+
 ## Repository layout
 
 - `clean_dropbox.py` — main script
