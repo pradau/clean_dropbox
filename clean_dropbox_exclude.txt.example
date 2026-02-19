@@ -1,0 +1,12 @@
+# Paths or filenames to never clean (one per line).
+# Copy to ~/Data/clean_dropbox_exclude.txt and edit.
+#
+# Basename only (matches anywhere): e.g. keep one specific .dmg
+# Perry-HR-2022.dmg
+#
+# Full path relative to Dropbox (exact match): e.g. keep one file in a folder
+# HR/Perry-HR-2022.dmg
+#
+# Lines with # are comments; blank lines are ignored.
+
+Perry-HR-2022.dmg
